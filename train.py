@@ -276,7 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('--file-path', type=str, metavar='PATH', 
                         default='')
     parser.add_argument('--root-dir', type=str, metavar='PATH', 
-                        default='/disk/MATLAB-NOUPLOAD/MyMVML-data/')
+                        default='data/')
     parser.add_argument('--dataset', type=str, default='')#mirflickr corel5k pascal07 iaprtc12 espgame
     parser.add_argument('--datasets', type=list, default=['corel5k'])
     parser.add_argument('--mask-view-ratio', type=float, default=0.5)
