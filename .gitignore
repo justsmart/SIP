@@ -1,3 +1,5 @@
 logs/
 curves/
 nohup.out
+__pycache__/
+.vscode/
