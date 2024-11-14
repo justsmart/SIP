@@ -25,6 +25,9 @@ import math,random
 #     return mv_data,label
 
 def loadMvMlDataFromMat(mat_path):
+    ################################
+    ###load complete dataset from .mat file.
+    #################################
     data = scipy.io.loadmat(mat_path)
     mv_data = data['X'][0]
     labels = data['label']
@@ -52,8 +55,13 @@ def loadMvMlDataFromMat(mat_path):
     return [v_data[rand_index] for v_data in mv_data],labels[rand_index],total_sample_num
 
 def loadMfDIMvMlDataFromMat(mat_path, fold_mat_path,fold_idx=0):
+    ###########################
     # load multiple folds double incomplete multi-view multi-label data and labels 
     # mark sure the out dimension is n x d, where n is the number of samples
+    # mat_path is the path stored the raw data and fold_mat_path for the constructed missing index matrix
+    # fold_idx is the fold you want, our 'fold_mat_path' provides 30 folds for repetition.
+    ###########################
+    
     data = scipy.io.loadmat(mat_path)
     datafold = scipy.io.loadmat(fold_mat_path)
     # multi-view data labels
@@ -85,9 +93,9 @@ def loadMfDIMvMlDataFromMat(mat_path, fold_mat_path,fold_idx=0):
     mv_data = [v_data[sample_index,:] for v,v_data in enumerate(mv_data)]
 
     assert inc_view_indicator.shape[0]==inc_label_indicator.shape[0]==sample_index.shape[0]==labels.shape[0]
-    # incomplete data construction and normalization fill with 0 value
+    ###### incomplete data construction and normalization fill with 0 value
     inc_mv_data = [(StandardScaler().fit_transform(v_data.astype(np.float32))*inc_view_indicator[:,v:v+1]) for v,v_data in enumerate(mv_data)]
-    ###### or fill it with random noise 
+    ###### or fill it with random noise by:
     # nor_mv_data = [(StandardScaler(),fit_transform(v_data.astype(np.float32))) for v,v_data in enumerate(mv_data)]
     # inc_mv_data = [np.random.randn(v_data,shape[0], v_data.shape[1]) for v_data in nor_mv_data]
     # for v, v_ data in enumerate(nor_mv_data):
@@ -95,7 +103,7 @@ def loadMfDIMvMlDataFromMat(mat_path, fold_mat_path,fold_idx=0):
     
     # incomplete label construction
     inc_labels = labels*inc_label_indicator
-    # delete data with all zero label 
+    # delete data with all zero label, <due to some reasons, we finally do not delete the empty data>
     ind00 = labels.sum(axis=1)==0
     # inc_mv_data = [np.delete(v_data, ind00,axis=0) for v_data in inc_mv_data]
     # mv_data = [np.delete(v_data, ind00,axis=0) for v_data in mv_data]
@@ -113,11 +121,12 @@ def loadMfDIMvMlDataFromMat(mat_path, fold_mat_path,fold_idx=0):
     # print('inc_labels',inc_labels[0,0:6])
     # print('inc_label==label?',np.array_equal(inc_labels,labels))
     # print('inc_mv_data==mv_data?',[np.array_equal(v_data,inc_mv_data[v]) for v,v_data in enumerate(mv_data)])
-    # for 
+ 
 
     return inc_mv_data,inc_labels,labels,inc_view_indicator,inc_label_indicator,total_sample_num
     
 class ComDataset(Dataset):
+    #### complete dataset class for unmissing data, not be used in our experiments!
     def __init__(self,mat_path,training_ratio=0.7,val_ratio=0.15,mode='train',semisup=False):
         self.mv_data, self.labels, self.total_sample_num= loadMvMlDataFromMat(mat_path)
         self.train_sample_num = math.ceil(self.total_sample_num * training_ratio)
@@ -150,6 +159,7 @@ class ComDataset(Dataset):
         return data,label, data, label
 
 class IncDataset(Dataset):
+    ## incomplete data loader class, you can set parameters for different missing settings
     def __init__(self,mat_path, fold_mat_path, training_ratio=0.7, val_ratio=0.15, fold_idx=0, mode='train',semisup=False):
         inc_mv_data, inc_labels, labels, inc_V_ind, inc_L_ind, total_sample_num= loadMfDIMvMlDataFromMat(mat_path,fold_mat_path,fold_idx)
         # inc_mv_data, inc_labels, labels, inc_V_ind, inc_L_ind, total_sample_num= loadMvMlDataFromMat(mat_path)
@@ -184,7 +194,9 @@ class IncDataset(Dataset):
         else: return self.test_sample_num 
     
     def __getitem__(self, index):
-        # index = index if self.is_train else self.train_sample_num+index
+        ##  data is a list with the tensor elements. dims:[nxd1, nxd2 ,nxd3], d1 d2 d3 are dimensions of various views
+        ##  label is matrix by n x c,
+        ##  inc_V_ind is n x m,  inc_L_ind is n x c. The element == 1 means the view/category is available.
         data = [torch.tensor(v[index],dtype=torch.float) for v in self.cur_mv_data] 
         label = torch.tensor(self.cur_labels[index], dtype=torch.float)
         inc_V_ind = torch.tensor(self.cur_inc_V_ind[index], dtype=torch.int32)
@@ -197,11 +209,15 @@ def getComDataloader(matdata_path,training_ratio=0.7,val_ratio=0.15,mode='train'
     return dataloder,dataset
  
 def getIncDataloader(matdata_path, fold_matdata_path, training_ratio=0.7, val_ratio=0.15, fold_idx=0, mode='train',batch_size=1,num_workers=1,shuffle=False):
+    ### you can callback this function to get dataloader
+    ### you just need to set training_ratio and val_ratio, the test_ratio is remainder.
     dataset = IncDataset(matdata_path, fold_matdata_path, training_ratio=training_ratio, val_ratio=val_ratio, mode=mode, fold_idx=fold_idx)
-    dataloder = DataLoader(dataset=dataset,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
-    return dataloder,dataset
+    dataloader = DataLoader(dataset=dataset,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
+    return dataloader,dataset
     
 if __name__=='__main__':
+    ## you can test the MLdataset.py here
+    
     # dataloder,dataset = getComDataloader('/disk/MATLAB-NOUPLOAD/MyMVML-data/corel5k/corel5k_six_view.mat',training_ratio=0.7,mode='train',batch_size=3,num_workers=2)
     dataloder,dataset = getIncDataloader('/disk/MATLAB-NOUPLOAD/MyMVML-data/corel5k/corel5k_six_view.mat','/disk/MATLAB-NOUPLOAD/MyMVML-data/corel5k/corel5k_six_view_MaskRatios_0.5_LabelMaskRatio_0.5_TraindataRatio_0.7.mat',training_ratio=0.7,mode='train',batch_size=3,num_workers=2)
     print(dataset.test_sample_num)
